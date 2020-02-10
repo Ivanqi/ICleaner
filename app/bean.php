@@ -75,14 +75,14 @@ return [
     ],
     'tcpServer'         => [
         // 'class' => TcpServer::class,
-        'port'  => env('TCP_PORT', 18309),
+        'port'  => env('TCP_PORT', 18311),
         'debug' => env('SWOFT_DEBUG', 0),
         'on' => [
             // SwooleEvent::TASK   => bean(TaskListener::class),  
             // SwooleEvent::FINISH => bean(FinishListener::class)
         ],
         'setting' => [
-            'log_file' => alias('@runtime/swoole_tcp.log'),
+            'log_file' => alias('@runtime/logs/swoole_tcp.log'),
             // 'task_worker_num' => 1,
             // 'task_enable_coroutine' => true
         ]
@@ -94,6 +94,6 @@ return [
     ],
     'processPool' => [
         'class' => \Swoft\Process\ProcessPool::class,
-        'workerNum' => 5
+        'workerNum' => env('PROCESSPOLL_WORKERNUM', 4)
     ]
 ];
