@@ -1,7 +1,7 @@
 <?php
 return [
     23 => [
-        'log_copy_kunlun' => [
+        't_log_copy_kunlun' => [
             'comment' => 'copy_kunlun',
             'fields' => [
                 'pid' => [
@@ -65,7 +65,7 @@ return [
                     'type' => 'BIGINT',
                     'notes' => '角色ID'
                 ],
-                'role_level' => [
+                'level' => [
                     'type' => 'INT',
                     'notes' => '角色等级'
                 ],
