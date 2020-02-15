@@ -33,7 +33,7 @@ class Application extends SwoftApplication
             'name'    => 'icleaner',
             'enable'  => true,
             'output'  => true,
-            'levels'  => 'info, error',
+            'levels'  => 'error',
             'logFile' => ''
         ];
     }

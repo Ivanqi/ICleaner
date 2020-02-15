@@ -16,6 +16,7 @@ use Swoft\Process\Contract\ProcessInterface;
 use Swoole\Coroutine;
 use Swoole\Process\Pool;
 use Swoft\Redis\Redis;
+use App\Common\Transformation;
 
 /**
  * Class LogProcess
@@ -34,7 +35,11 @@ class LogProcess implements ProcessInterface
     private static $topicRule = '';
     private static $topicNames = [];
     private static $tableConfig = [];
+    private static $tableRuleConfig = [];
     private static $consumerTime = 0;
+    private static $kafkaFailJob = '';
+    private static $kafkaPrefix = '';
+    private static $callFunc = '';
 
     public function __construct()
     {
@@ -44,25 +49,33 @@ class LogProcess implements ProcessInterface
         self::$tableConfig = config('table_config.' . self::$runProject);
         self::$topicRule = config('kafka_config.kafka_topic_rule');
         self::$consumerTime = config('kafka_config.kafka_consumer_time');
+        self::$tableRuleConfig = config('table_info_' . self::$runProject . '_rule')[self::$runProject];
+        self::$kafkaFailJob = config('kafka_config.kafka_fail_job');
+        self::$kafkaPrefix = config('kafka_config.kafka_topic_prefix');
+        self::$callFunc = '\\App\\Common\\Transformation';
 
-        print_r(['config', self::$runProject, self::$kafkaAddr, self::$groupId, self::$tableConfig, self::$topicRule, self::$consumerTime]);
 
         self::$conf = new \RdKafka\Conf();
         
         // Set a rebalance callback to log partition assignments (optional)
         self::$conf->setRebalanceCb(__CLASS__ . '::setRebalanceCb');
+
         // Configure the group.id. All consumer with the same group.id will come
         // different partitions
         self::$conf->set('group.id', self::$groupId);
+        
+        // Set where to start consuming messages when there is no initial offset in offset store or the desired offest is out of range.
+        // 'smallest': start from the beginning
+        self::$conf->set('auto.offset.reset', 'smallest');
+
         // Initial list of Kafka brokers
         self::$conf->set('metadata.broker.list', self::$kafkaAddr);
 
-
-        self::$topicNames = self::getTopicName(self::$runProject, self::$tableConfig['topic_list'], config('kafka_config.kafka_topic_prefix'));        
-        print_r(['topicNames', self::$topicNames]);
+        self::$topicNames = self::getTopicName(self::$runProject, self::$tableConfig['topic_list'], self::$kafkaPrefix);
     }
 
-    public static function getTopicName(int $runProject, array $topicList, string $kafkaPrefix) : array
+
+    private static function getTopicName(int $runProject, array $topicList, string $kafkaPrefix) : array
     {
         $topicNameList = [];
         foreach ($topicList as $topic) {
@@ -97,18 +110,57 @@ class LogProcess implements ProcessInterface
         if (self::$consumer == NULL) {
             self::$consumer = new \RdKafka\KafkaConsumer(self::$conf);
         }
-        // Subscribe to topic 'test'
         self::$consumer->subscribe(self::$topicNames);
 
         while (self::$runProject > 0) {
             self::kafkaConsumer(self::$consumer);
-            Coroutine::sleep(0.1);
+            Coroutine::sleep(2);
         }
     }
 
     private static function handleConsumerMessage(\RdKafka\Message $message): void
     {
-        var_dump($message);
+        try {
+            $topicName = $message->topic_name;
+            $recordName = substr($topicName, strlen(self::$kafkaPrefix . self::$runProject . '_') + 1);
+            if ($message->payload) {
+                $recordName = self::$tableConfig['table_prefix'] . $recordName;
+
+                if (!isset(self::$tableRuleConfig[$recordName])) {
+                    $failName = sprintf(self::$kafkaFailJob, self::$runProject, $recordName);
+                    Redis::PUSH($failName, $message->payload);
+                    throw new \Exception($recordName . ': 清洗配置不存在');
+                }
+
+                $payload = json_decode($message->payload, true);
+                $fieldsRule = self::$tableRuleConfig[$recordName]['fields'];
+
+                $payloadData = [];
+                foreach ($payload as $records) {
+                    $tmp = [];
+                    foreach ($fieldsRule as $fieldsK => $fieldsV) {
+                        if (isset($records[$fieldsK])) {
+                            $val = \call_user_func_array([self::$callFunc,  $fieldsV['type']], [$records[$fieldsK]]);
+                        } else {
+                            $val = \call_user_func_array([self::$callFunc, $fieldsV['type']], [Transformation::$defaultVal, $fieldsK]);
+                        }
+                        $tmp[$fieldsK] = $val;
+                    }
+                    $payloadData[] = $tmp;
+                }
+                unset($payload);
+                unset($filesRule);
+
+                // 往kafka 重新写入数据
+            }
+        } catch (\Exception $e) {
+            CLog::error($e->getMessage() . '文件：' . $e->getFile(). $e->getLine());
+        }
+    }
+
+    private static function kafkaProducer()
+    {
+
     }
 
     private static function kafkaConsumer(\RdKafka\KafkaConsumer $consumer): void
@@ -116,7 +168,7 @@ class LogProcess implements ProcessInterface
         $message = $consumer->consume(self::$consumerTime);
         switch ($message->err) {
             case RD_KAFKA_RESP_ERR_NO_ERROR:
-                self::handleConsumerMessage($message);
+                // self::handleConsumerMessage($message);
                 break;
             case RD_KAFKA_RESP_ERR__PARTITION_EOF:
                 CLog::error('No more message; will wait for more');

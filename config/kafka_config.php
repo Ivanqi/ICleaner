@@ -5,5 +5,6 @@ return [
     'kafka_consumer_group' => env('KAFKA_CONSUMER_GROUP', 'ICleanerConsumerGroup'),
     'run_project' => env('RUN_PROJECT', 0),
     'kafka_topic_rule' => '%s_%s_%s',
-    'kafka_consumer_time' => 120 * 10000
+    'kafka_consumer_time' => 15000,
+    'kafka_fail_job' => 'icleanr_%s_%s_fail_obj'
 ];
