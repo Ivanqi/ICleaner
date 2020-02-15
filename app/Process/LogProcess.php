@@ -17,6 +17,7 @@ use Swoole\Coroutine;
 use Swoole\Process\Pool;
 use Swoft\Redis\Redis;
 use App\Common\Transformation;
+use App\Common\SystemUsage;
 
 /**
  * Class LogProcess
@@ -144,7 +145,10 @@ class LogProcess implements ProcessInterface
         self::$consumer->subscribe(self::$topicNames);
 
         while (self::$runProject > 0) {
-            self::kafkaConsumer(self::$consumer);
+            $syData = SystemUsage::getCpuWithMem();
+            if ($syData['cpu_idle_rate'] > SystemUsage::$defaultMinCpuIdleRate && $syData['mem_usage'] < SystemUsage::$defaultMaxMemUsage) {
+                self::kafkaConsumer(self::$consumer);
+            }
             Coroutine::sleep(1);
         }
     }
@@ -162,7 +166,6 @@ class LogProcess implements ProcessInterface
                     Redis::PUSH($failName, $message->payload);
                     throw new \Exception($recordName . ': 清洗配置不存在');
                 }
-
                 $payload = json_decode($message->payload, true);
                 $fieldsRule = self::$tableRuleConfig[$recordName]['fields'];
 
