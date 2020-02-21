@@ -159,15 +159,15 @@ class LogProcess implements ProcessInterface
             $topicName = $message->topic_name;
             $recordName = substr($topicName, strlen(self::$kafkaConsumerPrefix . self::$runProject . '_') + 1);
             if ($message->payload) {
-                $recordName = self::$tableConfig['table_prefix'] . $recordName;
+                $talbeName = self::$tableConfig['table_prefix'] . $recordName;
 
-                if (!isset(self::$tableRuleConfig[$recordName])) {
+                if (!isset(self::$tableRuleConfig[$talbeName])) {
                     $failName = sprintf(self::$kafkaConsumerFailJob, self::$runProject, $recordName);
                     Redis::PUSH($failName, $message->payload);
                     throw new \Exception($recordName . ': 清洗配置不存在');
                 }
                 $payload = json_decode($message->payload, true);
-                $fieldsRule = self::$tableRuleConfig[$recordName]['fields'];
+                $fieldsRule = self::$tableRuleConfig[$talbeName]['fields'];
 
                 $payloadData = [];
                 foreach ($payload as $records) {
