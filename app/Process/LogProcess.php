@@ -57,7 +57,7 @@ class LogProcess implements ProcessInterface
         while (self::$runProject > 0) {
             $syData = SystemUsage::getCpuWithMem();
             if ($syData['cpu_idle_rate'] > SystemUsage::$defaultMinCpuIdleRate && $syData['mem_usage'] < SystemUsage::$defaultMaxMemUsage) {
-                self::$kafkakafkaProducer->kafkaConsumer(self::$consumer);
+                self::$kafkakafkaProducer->kafkaConsumer(self::$consumer, $workerId);
             }
             Coroutine::sleep(0.1);
         }

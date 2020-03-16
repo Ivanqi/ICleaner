@@ -9,5 +9,6 @@ return [
     'kafka_topic_rule' => '%s_%s_%s',
     'kafka_consumer_time' => 15000,
     'kafka_consumer_fail_job' => 'icleaner_%s_%s_consumer_fail_obj',
-    'kafka_producer_fail_job' => 'icleaner_%s_%s_producer_fail_obj'
+    'kafka_producer_fail_job' => 'icleaner_%s_%s_producer_fail_obj',
+    'kafka_test_env' => env('KAFKA_TEST_ENV', false)
 ];

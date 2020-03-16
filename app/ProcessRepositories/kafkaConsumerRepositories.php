@@ -19,6 +19,7 @@ class kafkaConsumerRepositories
     private static $topicRule = '';
     private static $tableRuleConfig = [];
     private static $kafkaProducer;
+    private static $kafkaTestEnv = false;
 
     public function __construct()
     {
@@ -31,6 +32,7 @@ class kafkaConsumerRepositories
         self::$topicRule = config('kafka_config.kafka_topic_rule');
         self::$tableRuleConfig = config('table_info_' . self::$runProject . '_rule')[self::$runProject];
         self::$kafkaProducer = kafkaProducerRepositories::getInstance();
+        self::$kafkaTestEnv = config('kafka_config.kafka_test_env');
 
 
         self::$callFunc = '\\App\\Common\\Transformation';
@@ -56,10 +58,16 @@ class kafkaConsumerRepositories
          
         // Set where to start consuming messages when there is no initial offset in offset store or the desired offest is out of range.
         // 'smallest': start from the beginning
-        $conf->set('auto.offset.reset', 'smallest');
- 
+        if (self::$kafkaTestEnv) {
+            $conf->set('auto.offset.reset', 'smallest');
+        }
         // Initial list of Kafka brokers
         $conf->set('metadata.broker.list', self::$kafkaConsumerAddr);
+        $conf->set('socket.keepalive.enable', 'true');
+        $conf->set('log.connection.close', 'false');
+        // $conf->set('session.timeout.ms', '400000');
+        // $conf->set('max.partition.fetch.bytes', '848576');
+
         return $conf;
     }
 
@@ -94,7 +102,7 @@ class kafkaConsumerRepositories
         return $topicNameList;
     }
 
-    public function kafkaConsumer(\RdKafka\KafkaConsumer $consumer): void
+    public function kafkaConsumer(\RdKafka\KafkaConsumer $consumer, $workerId): void
     {
         $message = $consumer->consume(self::$consumerTime);
         switch ($message->err) {
@@ -105,7 +113,7 @@ class kafkaConsumerRepositories
                 CLog::error('No more message; will wait for more');
                 break;
             case RD_KAFKA_RESP_ERR__TIMED_OUT:
-                CLog::error('Timed out');
+                CLog::error('Timed out:'. $workerId);
                 break;
             default:
                 CLog::error($message->errstr() . '(' . $message->err .')');
@@ -124,7 +132,7 @@ class kafkaConsumerRepositories
                     Redis::lPush($failName, $message->payload);
                     throw new \Exception($recordName . ': 清洗配置不存在');
                 }
-                $payload = unserialize($message->payload);
+                $payload = json_decode($message->payload, true);
                 
                 $fieldsRule = self::$tableRuleConfig[$tableName]['fields'];
 
@@ -145,7 +153,7 @@ class kafkaConsumerRepositories
                 unset($filesRule);
 
                 // // 往kafka 重新写入数据
-                $payloadDataJson = serialize($payloadData);
+                $payloadDataJson = json_encode($payloadData);
                 unset($payloadData);
                 if (!self::$kafkaProducer->kafkaProducer($recordName, $payloadDataJson)) {
                     $failName = sprintf(self::$kafkaProducerFailJob, self::$runProject, $recordName);
