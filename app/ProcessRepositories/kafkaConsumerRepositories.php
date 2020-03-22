@@ -56,7 +56,7 @@ class kafkaConsumerRepositories
 
         // Configure the group.id. All consumer with the same group.id will come
         // different partitions
-        $conf->set('group.id', self::$groupId . self::$runProject);
+        $conf->set('group.id', self::$groupId . self::$runProject . '106');
          
         // Set where to start consuming messages when there is no initial offset in offset store or the desired offest is out of range.
         // 'smallest': start from the beginning
@@ -125,37 +125,37 @@ class kafkaConsumerRepositories
     public static function handleConsumerMessage(\RdKafka\Message $message): void
     {
         try {
-            $topicName = $message->topic_name;
-            $recordName = substr($topicName, strlen(self::$kafkaConsumerPrefix . self::$runProject . '_') + 1);
             if ($message->payload) {
-                $tableName = self::$tableConfig['table_prefix'] . $recordName;
-                if (!isset(self::$tableRuleConfig[$tableName])) {
-                    $failName = sprintf(self::$kafkaConsumerFailJob, self::$runProject, $recordName);
-                    Redis::lPush($failName, $message->payload);
-                    throw new \Exception($recordName . ': 清洗配置不存在');
-                }
+                $topicName = $message->topic_name;
+                $recordName = substr($topicName, strlen(self::$kafkaConsumerPrefix . self::$runProject . '_') + 1);
+                // $tableName = self::$tableConfig['table_prefix'] . $recordName;
+                // if (!isset(self::$tableRuleConfig[$tableName])) {
+                //     $failName = sprintf(self::$kafkaConsumerFailJob, self::$runProject, $recordName);
+                //     Redis::lPush($failName, $message->payload);
+                //     throw new \Exception($recordName . ': 清洗配置不存在');
+                // }
                 $payload = json_decode($message->payload, true);
                 
-                $fieldsRule = self::$tableRuleConfig[$tableName]['fields'];
+                // $fieldsRule = self::$tableRuleConfig[$tableName]['fields'];
 
-                $payloadData = [];
-                foreach ($payload as $records) {
-                    $tmp = [];
-                    foreach ($fieldsRule as $fieldsK => $fieldsV) {
-                        if (isset($records[$fieldsK])) {
-                            $val = \call_user_func_array([self::$callFunc,  $fieldsV['type']], [$records[$fieldsK]]);
-                        } else {
-                            $val = \call_user_func_array([self::$callFunc, $fieldsV['type']], [Transformation::$defaultVal, $fieldsK]);
-                        }
-                        $tmp[$fieldsK] = $val;
-                    }
-                    $payloadData[] = $tmp;
-                }
-                unset($payload);
-                unset($filesRule);
+                // $payloadData = [];
+                // foreach ($payload as $records) {
+                //     $tmp = [];
+                //     foreach ($fieldsRule as $fieldsK => $fieldsV) {
+                //         if (isset($records[$fieldsK])) {
+                //             $val = \call_user_func_array([self::$callFunc,  $fieldsV['type']], [$records[$fieldsK]]);
+                //         } else {
+                //             $val = \call_user_func_array([self::$callFunc, $fieldsV['type']], [Transformation::$defaultVal, $fieldsK]);
+                //         }
+                //         $tmp[$fieldsK] = $val;
+                //     }
+                //     $payloadData[] = $tmp;
+                // }
+                // unset($payload);
+                // unset($filesRule);
 
                 // 往kafka 重新写入数据
-                $payloadDataJson = serialize(gzcompress(serialize($payloadData)));
+                $payloadDataJson = serialize(gzcompress(serialize($payload)));
                 $jobName = sprintf(self::$kafkaTopicJob, self::$runProject, $recordName);
                 Redis::lPush($jobName, $payloadDataJson);
 
@@ -164,7 +164,8 @@ class kafkaConsumerRepositories
                 //     Redis::lPush($failName, $payloadDataJson);
                 //     throw new \Exception("kafka客户端连接失败！");
                 // }
-                unset($payloadData);
+                unset($payload);
+                // unset($payloadData);
                 unset($payloadDataJson);
             }
         } catch (\Exception $e) {
