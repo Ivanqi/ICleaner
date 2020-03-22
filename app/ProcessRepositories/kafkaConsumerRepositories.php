@@ -11,7 +11,7 @@ class kafkaConsumerRepositories
     private static $kafkaConsumerAddr;
     private static $kafkaConsumerFailJob = '';
     private static $kafkaConsumerPrefix = '';
-    private static $consumerTime = 0;
+    public static $consumerTime = 0;
     private static $runProject;
     private static $tableConfig = [];
     private static $_instance;
@@ -20,6 +20,7 @@ class kafkaConsumerRepositories
     private static $tableRuleConfig = [];
     private static $kafkaProducer;
     private static $kafkaTestEnv = false;
+    private static $kafkaTopicJob = '';
 
     public function __construct()
     {
@@ -33,6 +34,7 @@ class kafkaConsumerRepositories
         self::$tableRuleConfig = config('table_info_' . self::$runProject . '_rule')[self::$runProject];
         self::$kafkaProducer = kafkaProducerRepositories::getInstance();
         self::$kafkaTestEnv = config('kafka_config.kafka_test_env');
+        self::$kafkaTopicJob = config('kafka_config.kafka_topic_job');
 
 
         self::$callFunc = '\\App\\Common\\Transformation';
@@ -54,7 +56,7 @@ class kafkaConsumerRepositories
 
         // Configure the group.id. All consumer with the same group.id will come
         // different partitions
-        $conf->set('group.id', self::$groupId);
+        $conf->set('group.id', self::$groupId . self::$runProject);
          
         // Set where to start consuming messages when there is no initial offset in offset store or the desired offest is out of range.
         // 'smallest': start from the beginning
@@ -102,25 +104,25 @@ class kafkaConsumerRepositories
         return $topicNameList;
     }
 
-    public function kafkaConsumer(\RdKafka\KafkaConsumer $consumer, $workerId): void
-    {
-        $message = $consumer->consume(self::$consumerTime);
-        switch ($message->err) {
-            case RD_KAFKA_RESP_ERR_NO_ERROR:
-                self::handleConsumerMessage($message);
-                break;
-            case RD_KAFKA_RESP_ERR__PARTITION_EOF:
-                CLog::error('No more message; will wait for more');
-                break;
-            case RD_KAFKA_RESP_ERR__TIMED_OUT:
-                CLog::error('Timed out:'. $workerId);
-                break;
-            default:
-                CLog::error($message->errstr() . '(' . $message->err .')');
-        }
-    }
+    // public function kafkaConsumer(\RdKafka\KafkaConsumer $consumer, $workerId): void
+    // {
+    //     $message = $consumer->consume(self::$consumerTime);
+    //     switch ($message->err) {
+    //         case RD_KAFKA_RESP_ERR_NO_ERROR:
+    //             // self::handleConsumerMessage($message);
+    //             break;
+    //         case RD_KAFKA_RESP_ERR__PARTITION_EOF:
+    //             CLog::error('No more message; will wait for more');
+    //             break;
+    //         case RD_KAFKA_RESP_ERR__TIMED_OUT:
+    //             CLog::error('Timed out:'. $workerId);
+    //             break;
+    //         default:
+    //             CLog::error($message->errstr() . '(' . $message->err .')');
+    //     }
+    // }
 
-    private static function handleConsumerMessage(\RdKafka\Message $message): void
+    public static function handleConsumerMessage(\RdKafka\Message $message): void
     {
         try {
             $topicName = $message->topic_name;
@@ -152,14 +154,17 @@ class kafkaConsumerRepositories
                 unset($payload);
                 unset($filesRule);
 
-                // // 往kafka 重新写入数据
-                $payloadDataJson = json_encode($payloadData);
+                // 往kafka 重新写入数据
+                $payloadDataJson = serialize(gzcompress(serialize($payloadData)));
+                $jobName = sprintf(self::$kafkaTopicJob, self::$runProject, $recordName);
+                Redis::lPush($jobName, $payloadDataJson);
+
+                // if (!self::$kafkaProducer->kafkaProducer($recordName, $payloadDataJson)) {
+                //     $failName = sprintf(self::$kafkaProducerFailJob, self::$runProject, $recordName);
+                //     Redis::lPush($failName, $payloadDataJson);
+                //     throw new \Exception("kafka客户端连接失败！");
+                // }
                 unset($payloadData);
-                if (!self::$kafkaProducer->kafkaProducer($recordName, $payloadDataJson)) {
-                    $failName = sprintf(self::$kafkaProducerFailJob, self::$runProject, $recordName);
-                    Redis::lPush($failName, $payloadDataJson);
-                    throw new \Exception("kafka客户端连接失败！");
-                }
                 unset($payloadDataJson);
             }
         } catch (\Exception $e) {

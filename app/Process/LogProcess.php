@@ -38,9 +38,6 @@ class LogProcess implements ProcessInterface
     public function __construct()
     {
         self::$runProject = (int) config('kafka_config.run_project');
-        self::$kafkakafkaProducer = kafkaConsumerRepositories::getInstance();
-        self::$consumerConf = self::$kafkakafkaProducer->kafkaConsumerConf();
-        self::$topicNames = self::$kafkakafkaProducer->getTopicName();
     }
 
     /**
@@ -49,17 +46,42 @@ class LogProcess implements ProcessInterface
      */
     public function run(Pool $pool, int $workerId): void
     { 
-        if (self::$consumer == NULL) {
-            self::$consumer = new \RdKafka\KafkaConsumer(self::$consumerConf);
-        }
-        self::$consumer->subscribe(self::$topicNames);
+        $start_time = microtime(true); 
+        $kafkakafkaProducer = kafkaConsumerRepositories::getInstance();
+        $consumerConf = $kafkakafkaProducer->kafkaConsumerConf();
+        $topicNames = $kafkakafkaProducer->getTopicName();
+
+        $consumer = new \RdKafka\KafkaConsumer($consumerConf);
+
+        $consumer->subscribe($topicNames);
 
         while (self::$runProject > 0) {
-            $syData = SystemUsage::getCpuWithMem();
-            if ($syData['cpu_idle_rate'] > SystemUsage::$defaultMinCpuIdleRate && $syData['mem_usage'] < SystemUsage::$defaultMaxMemUsage) {
-                self::$kafkakafkaProducer->kafkaConsumer(self::$consumer, $workerId);
+            // $kafkakafkaProducer->kafkaConsumer($consumer, $workerId);
+            // $syData = SystemUsage::getCpuWithMem();
+            $message = $consumer->consume(kafkaConsumerRepositories::$consumerTime);
+            // if ($syData['cpu_idle_rate'] > SystemUsage::$defaultMinCpuIdleRate && $syData['mem_usage'] < SystemUsage::$defaultMaxMemUsage) {
+                // self::$kafkakafkaProducer->kafkaConsumer(self::$consumer, $workerId);
+
+            switch ($message->err) {
+                case RD_KAFKA_RESP_ERR_NO_ERROR:
+                    $kafkakafkaProducer->handleConsumerMessage($message);
+                    break;
+                case RD_KAFKA_RESP_ERR__PARTITION_EOF:
+                    CLog::error('No more message; will wait for more');
+                    $end_time = microtime(true); 
+                    $execution_time = ($end_time - $start_time); 
+                    CLog::error(" 脚本执行时间 = ".$execution_time." 秒");
+                    Coroutine::sleep(0.1);
+                    break;
+                case RD_KAFKA_RESP_ERR__TIMED_OUT:
+                    // CLog::error('Timed out:'. $workerId);
+                    Coroutine::sleep(0.1);
+                    break;
+                default:
+                    throw new \Exception($message->errstr(), $message->err);
+                    break;
             }
-            Coroutine::sleep(0.1);
+            // }
         }
     }
 }

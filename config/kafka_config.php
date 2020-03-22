@@ -7,8 +7,10 @@ return [
     'kafka_consumer_group' => env('KAFKA_CONSUMER_GROUP', 'ICleanerConsumerGroup'),
     'run_project' => env('RUN_PROJECT', 0),
     'kafka_topic_rule' => '%s_%s_%s',
-    'kafka_consumer_time' => 15000,
-    'kafka_consumer_fail_job' => 'icleaner_%s_%s_consumer_fail_obj',
-    'kafka_producer_fail_job' => 'icleaner_%s_%s_producer_fail_obj',
+    'kafka_consumer_time' => 150000,
+    'kafka_consumer_fail_job' => '%s_%s_consumer_fail_obj',
+    'kafka_producer_fail_job' => '%s_%s_producer_fail_obj',
+    'kafka_topic_job' => '%s_%s_topic_job',
+    'kafka_topic_fail_job' => '%s_%s_topic_fail_job',
     'kafka_test_env' => env('KAFKA_TEST_ENV', false)
 ];
