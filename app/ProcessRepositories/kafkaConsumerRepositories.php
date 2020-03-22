@@ -15,10 +15,8 @@ class kafkaConsumerRepositories
     private static $runProject;
     private static $tableConfig = [];
     private static $_instance;
-    private static $callFunc = '';
+    
     private static $topicRule = '';
-    private static $tableRuleConfig = [];
-    private static $kafkaProducer;
     private static $kafkaTestEnv = false;
     private static $kafkaTopicJob = '';
 
@@ -31,13 +29,10 @@ class kafkaConsumerRepositories
         self::$kafkaConsumerFailJob = config('kafka_config.kafka_consumer_fail_job');
         self::$tableConfig = config('table_config.' . self::$runProject);
         self::$topicRule = config('kafka_config.kafka_topic_rule');
-        self::$tableRuleConfig = config('table_info_' . self::$runProject . '_rule')[self::$runProject];
-        self::$kafkaProducer = kafkaProducerRepositories::getInstance();
+        
         self::$kafkaTestEnv = config('kafka_config.kafka_test_env');
         self::$kafkaTopicJob = config('kafka_config.kafka_topic_job');
-
-
-        self::$callFunc = '\\App\\Common\\Transformation';
+        self::$consumerTime = config('kafka_config.kafka_consumer_time');
     }
 
     public static function getInstance()
@@ -104,68 +99,21 @@ class kafkaConsumerRepositories
         return $topicNameList;
     }
 
-    // public function kafkaConsumer(\RdKafka\KafkaConsumer $consumer, $workerId): void
-    // {
-    //     $message = $consumer->consume(self::$consumerTime);
-    //     switch ($message->err) {
-    //         case RD_KAFKA_RESP_ERR_NO_ERROR:
-    //             // self::handleConsumerMessage($message);
-    //             break;
-    //         case RD_KAFKA_RESP_ERR__PARTITION_EOF:
-    //             CLog::error('No more message; will wait for more');
-    //             break;
-    //         case RD_KAFKA_RESP_ERR__TIMED_OUT:
-    //             CLog::error('Timed out:'. $workerId);
-    //             break;
-    //         default:
-    //             CLog::error($message->errstr() . '(' . $message->err .')');
-    //     }
-    // }
-
     public static function handleConsumerMessage(\RdKafka\Message $message): void
     {
         try {
             if ($message->payload) {
                 $topicName = $message->topic_name;
                 $recordName = substr($topicName, strlen(self::$kafkaConsumerPrefix . self::$runProject . '_') + 1);
-                // $tableName = self::$tableConfig['table_prefix'] . $recordName;
-                // if (!isset(self::$tableRuleConfig[$tableName])) {
-                //     $failName = sprintf(self::$kafkaConsumerFailJob, self::$runProject, $recordName);
-                //     Redis::lPush($failName, $message->payload);
-                //     throw new \Exception($recordName . ': 清洗配置不存在');
-                // }
                 $payload = json_decode($message->payload, true);
                 
-                // $fieldsRule = self::$tableRuleConfig[$tableName]['fields'];
-
-                // $payloadData = [];
-                // foreach ($payload as $records) {
-                //     $tmp = [];
-                //     foreach ($fieldsRule as $fieldsK => $fieldsV) {
-                //         if (isset($records[$fieldsK])) {
-                //             $val = \call_user_func_array([self::$callFunc,  $fieldsV['type']], [$records[$fieldsK]]);
-                //         } else {
-                //             $val = \call_user_func_array([self::$callFunc, $fieldsV['type']], [Transformation::$defaultVal, $fieldsK]);
-                //         }
-                //         $tmp[$fieldsK] = $val;
-                //     }
-                //     $payloadData[] = $tmp;
-                // }
-                // unset($payload);
-                // unset($filesRule);
-
                 // 往kafka 重新写入数据
                 $payloadDataJson = serialize(gzcompress(serialize($payload)));
                 $jobName = sprintf(self::$kafkaTopicJob, self::$runProject, $recordName);
                 Redis::lPush($jobName, $payloadDataJson);
 
-                // if (!self::$kafkaProducer->kafkaProducer($recordName, $payloadDataJson)) {
-                //     $failName = sprintf(self::$kafkaProducerFailJob, self::$runProject, $recordName);
-                //     Redis::lPush($failName, $payloadDataJson);
-                //     throw new \Exception("kafka客户端连接失败！");
-                // }
+               
                 unset($payload);
-                // unset($payloadData);
                 unset($payloadDataJson);
             }
         } catch (\Exception $e) {

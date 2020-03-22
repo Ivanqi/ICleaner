@@ -36,12 +36,10 @@ class KafkaConsumerProcess implements ProcessInterface
     private function registerSignal()
     {
         \Swoole\Process::signal(SIGUSR1, function ($signo) {
-            CLog::error("SIGUSR1|signo = " . $signo);
             self::$systemMonitorCode = SystemMonitorProcessRepositories::ERROR_CODE;
         });
 
         \Swoole\Process::signal(SIGUSR2, function ($signo) {
-            CLog::error("SIGUSR2|signo = " . $signo);
             self::$systemMonitorCode = SystemMonitorProcessRepositories::SUCCESS_CODE;
         });
     }
@@ -64,7 +62,7 @@ class KafkaConsumerProcess implements ProcessInterface
 
         while (self::$runProject > 0) {
             if (self::$systemMonitorCode == SystemMonitorProcessRepositories::SUCCESS_CODE) {
-                $message = $consumer->consume(kafkaConsumerRepositories::$consumerTime);
+                $message = $consumer->consume($kafkakafkaProducer->consumerTime);
                 switch ($message->err) {
                     case RD_KAFKA_RESP_ERR_NO_ERROR:
                         $kafkakafkaProducer->handleConsumerMessage($message);

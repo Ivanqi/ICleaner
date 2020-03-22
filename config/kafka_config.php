@@ -12,5 +12,6 @@ return [
     'kafka_producer_fail_job' => '%s_%s_producer_fail_obj',
     'kafka_topic_job' => '%s_%s_topic_job',
     'kafka_topic_fail_job' => '%s_%s_topic_fail_job',
-    'kafka_test_env' => env('KAFKA_TEST_ENV', false)
+    'kafka_test_env' => env('KAFKA_TEST_ENV', false),
+    'queue_max_timeout' => 5
 ];

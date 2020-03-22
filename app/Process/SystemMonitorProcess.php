@@ -30,9 +30,9 @@ class SystemMonitorProcess implements ProcessInterface
         while (true) {
             $syData = SystemUsage::getCpuWithMem();
             if (($syData['cpu_idle_rate'] < SystemUsage::$defaultMinCpuIdleRate || $syData['mem_usage'] > SystemUsage::$defaultMaxMemUsage) && self::$signo == SIGUSR2 ) {
-                self::$signo = SIGUSR1;
                 $ret = \Swoole\Process::kill($prevPid, 0);
                 if ($ret) {
+                    self::$signo = SIGUSR1;
                     \Swoole\Process::kill($prevPid, SIGUSR1);
                 }
             } else if (self::$signo == SIGUSR1){
