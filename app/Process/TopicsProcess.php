@@ -13,7 +13,7 @@ use App\ProcessRepositories\TopicsProcessRepositories;
  *
  * @since 2.0
  *
- * @Process(workerId={3})
+ * @Process(workerId={2, 3})
  */
 class TopicsProcess implements ProcessInterface
 {
@@ -24,7 +24,7 @@ class TopicsProcess implements ProcessInterface
     public function run(Pool $pool, int $workerId): void
     { 
         $topicsProcessRepositories = TopicsProcessRepositories::getInstance();
-        
+
         while (true) {
             $topicsProcessRepositories->topicHandler();
             Coroutine::sleep(0.1);

@@ -1,5 +1,6 @@
 <?php declare(strict_types=1);
 namespace App\ProcessRepositories;
+use Swoft\Log\Helper\CLog;
 
 class TopicsProcessRepositories
 {
@@ -8,6 +9,7 @@ class TopicsProcessRepositories
     private static $topicList;
     private static $topicNums;
     private static $maxTimeout;
+    private static $maxTimes;
     private static $keyIndex = 0;
     private static $kafkaTopicJobTemp = '';
     private static $kafkaTopicFailJobTemp = '';
@@ -41,6 +43,7 @@ class TopicsProcessRepositories
         self::$kafkaTopicFailJobTemp = config('kafka_config.kafka_topic_fail_job');
         self::$maxTimeout = config('kafka_config.queue_max_timeout');
         self::$tableRuleConfig = config('table_info_' . self::$runProject . '_rule')[self::$runProject];
+        self::$maxTimes = config('kafka_config.queue_max_times');
 
         self::$callFunc = '\\App\\Common\\Transformation';
         self::$kafkaProducer = kafkaProducerRepositories::getInstance();
@@ -79,7 +82,7 @@ class TopicsProcessRepositories
         try {
             $keyArr = $this->getHandleKey();
 
-            for ($i = 0; $i < 10; $i++) {
+            for ($i = 0; $i < self::$maxTimes; $i++) {
                 $logData = Redis::BRPOPLPUSH($keyArr[KAFKA_TOPIC_JOB_KEY], $keyArr[KAFKA_TOPIC_FAILE_JOB_KEY], self::$maxTimeout);
                 $logDataDecrypt = unserialize(gzuncompress(unserialize($logData)));
                 
