@@ -101,7 +101,6 @@ class TopicsProcessRepositories
                 // 规则清洗
                 $fieldsRule = self::$tableRuleConfig[$tableName]['fields'];
 
-                $payloadData = [];
                 $palyloadPrev = [];
                 $palyloadNext = [];
                 $dataNum = count($logDataDecrypt);
@@ -119,7 +118,7 @@ class TopicsProcessRepositories
                 unset($logData);
                 $kafkaData = array_merge($kafkaData, $palyloadPrev, $palyloadNext);
             }
-            if (empty($kafkaData)) {
+            if (!empty($kafkaData)) {
                 $payloadDataEncryption = serialize(gzcompress(serialize($kafkaData)));
                 unset($kafkaData);
                 // 把数据发送到kafka
@@ -128,7 +127,7 @@ class TopicsProcessRepositories
                 }
                 unset($payloadDataEncryption);
             }
-            if (empty($failData)) {
+            if (!empty($failData)) {
                 foreach($failData as $failLog) {
                     Redis::lrem($keyArr[self::KAFKA_TOPIC_FAILE_JOB_KEY], $failLog);
                 }
