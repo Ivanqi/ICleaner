@@ -62,7 +62,7 @@ class KafkaConsumerProcess implements ProcessInterface
 
         while (self::$runProject > 0) {
             if (self::$systemMonitorCode == SystemMonitorProcessRepositories::SUCCESS_CODE) {
-                $message = $consumer->consume($kafkakafkaProducer->consumerTime);
+                $message = $consumer->consume($kafkakafkaProducer->getConsumerTime());
                 switch ($message->err) {
                     case RD_KAFKA_RESP_ERR_NO_ERROR:
                         $kafkakafkaProducer->handleConsumerMessage($message);

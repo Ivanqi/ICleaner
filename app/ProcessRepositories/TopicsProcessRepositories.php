@@ -1,6 +1,8 @@
 <?php declare(strict_types=1);
 namespace App\ProcessRepositories;
 use Swoft\Log\Helper\CLog;
+use Swoft\Redis\Redis;
+use App\Common\Transformation;
 
 class TopicsProcessRepositories
 {
@@ -34,12 +36,12 @@ class TopicsProcessRepositories
     {
         self::$runProject = (int) config('kafka_config.run_project');
         $tableConfig = config('table_config');
-        $projectTableConfig = $tableConfig[$runProject];
+        $projectTableConfig = $tableConfig[self::$runProject];
 
         self::$topicList = $projectTableConfig['topic_list'];
         self::$tablePrefix = $projectTableConfig['table_prefix'];
-        self::$topicNums = count($topicList);
-        self::$$kafkaTopicJobTemp = config('kafka_config.kafka_topic_job');
+        self::$topicNums = count(self::$topicList);
+        self::$kafkaTopicJobTemp = config('kafka_config.kafka_topic_job');
         self::$kafkaTopicFailJobTemp = config('kafka_config.kafka_topic_fail_job');
         self::$maxTimeout = config('kafka_config.queue_max_timeout');
         self::$tableRuleConfig = config('table_info_' . self::$runProject . '_rule')[self::$runProject];
@@ -57,7 +59,7 @@ class TopicsProcessRepositories
         do {
             if (isset($topicList[$i])) break;
             $i = ($i + 1) % self::$topicNums;
-        } while ($i != self::$$keyIndex);
+        } while ($i != self::$keyIndex);
 
         self::$keyIndex = ($i + 1) % self::$topicNums;
 
@@ -68,12 +70,16 @@ class TopicsProcessRepositories
     {
        
         $index = $this->getRRNum();
-        $topic = isset(self::$topicList[$index]);
-
+        if (isset(self::$topicList[$index])) {
+            $topic = self::$topicList[$index];
+        } else {
+            $topic = self::$topicList[0];
+        }
+        
         return [
-            KAFKA_TOPIC_JOB_KEY => sprintf(self::$$kafkaTopicJobTemp, self::$runProject, $topic),
-            KAFKA_TOPIC_FAILE_JOB_KEY => sprintf(self::$kafkaTopicFailJobTemp, self::$runProject, $topic),
-            TOPIC_NAME => $topic
+            self::KAFKA_TOPIC_JOB_KEY => sprintf(self::$kafkaTopicJobTemp, self::$runProject, $topic),
+            self::KAFKA_TOPIC_FAILE_JOB_KEY => sprintf(self::$kafkaTopicFailJobTemp, self::$runProject, $topic),
+            self::TOPIC_NAME => $topic
         ];
     }
 
@@ -81,44 +87,69 @@ class TopicsProcessRepositories
     {
         try {
             $keyArr = $this->getHandleKey();
-
+            $kafkaData = [];
+            $failData = [];
             for ($i = 0; $i < self::$maxTimes; $i++) {
-                $logData = Redis::BRPOPLPUSH($keyArr[KAFKA_TOPIC_JOB_KEY], $keyArr[KAFKA_TOPIC_FAILE_JOB_KEY], self::$maxTimeout);
+                $logData = Redis::BRPOPLPUSH($keyArr[self::KAFKA_TOPIC_JOB_KEY], $keyArr[self::KAFKA_TOPIC_FAILE_JOB_KEY], self::$maxTimeout);
+                if (empty($logData)) continue;
+                $failData[] = $logData;
                 $logDataDecrypt = unserialize(gzuncompress(unserialize($logData)));
-                
-                $tableName = self::$tablePrefix . $keyArr[TOPIC_NAME];
+                $tableName = self::$tablePrefix . $keyArr[self::TOPIC_NAME];
                 if (!isset(self::$tableRuleConfig[$tableName])) {
-                    throw new \Exception($recordName . ': 清洗配置不存在');
+                    throw new \Exception($keyArr[self::TOPIC_NAME] . ': 清洗配置不存在');
                 }
                 // 规则清洗
                 $fieldsRule = self::$tableRuleConfig[$tableName]['fields'];
 
                 $payloadData = [];
-                foreach ($payload as $records) {
-                    $tmp = [];
-                    foreach ($fieldsRule as $fieldsK => $fieldsV) {
-                        if (isset($records[$fieldsK])) {
-                            $val = \call_user_func_array([self::$callFunc,  $fieldsV['type']], [$records[$fieldsK]]);
-                        } else {
-                            $val = \call_user_func_array([self::$callFunc, $fieldsV['type']], [Transformation::$defaultVal, $fieldsK]);
+                $palyloadPrev = [];
+                $palyloadNext = [];
+                $dataNum = count($logDataDecrypt);
+                $half = ceil($dataNum  / 2);
+                for ($i = 0; $i < $half; $i++) {
+                    $palyloadPrev[$i] = $this->ruleCleaning($fieldsRule, $logDataDecrypt[$i]);
+                    $next = $half + $i;
+                    if ($next < $dataNum) {
+                        if (isset($logDataDecrypt[$next])) {
+                            $palyloadNext[$next] = $this->ruleCleaning($fieldsRule, $logDataDecrypt[$i]);
                         }
-                        $tmp[$fieldsK] = $val;
                     }
-                    $payloadData[] = $tmp;
                 }
+                $payloadData = array_merge($palyloadPrev, $palyloadNext);
+                unset($palyloadNext);
+                unset($palyloadPrev);
                 unset($logDataDecrypt);
-                $payloadDataEncryption = serialize(gzcompress(serialize($payloadData)));
-
-                // 把数据发送到kafka
-                if (!self::$kafkaProducer->kafkaProducer($recordName, $payloadDataEncryption)) {
-                    throw new \Exception("kafka客户端连接失败！");
-                }
-                unset($payloadDataEncryption);
-                Redis::lrem($keyArr[KAFKA_TOPIC_FAILE_JOB_KEY], $logData);
                 unset($logData);
+                
+                $kafkaData[] = $payloadData;
             }
+            $payloadDataEncryption = serialize(gzcompress(serialize($kafkaData)));
+            unset($kafkaData);
+            // 把数据发送到kafka
+            if (!self::$kafkaProducer->kafkaProducer($keyArr[self::TOPIC_NAME], $payloadDataEncryption)) {
+                throw new \Exception("kafka客户端连接失败！");
+            }
+            unset($payloadDataEncryption);
+            foreach($failData as $failLog) {
+                Redis::lrem($keyArr[self::KAFKA_TOPIC_FAILE_JOB_KEY], $failLog);
+            }
+            unset($failData);
         } catch (\Exception $e) {
             CLog::error($e->getMessage() . '(' . $e->getLine() .')');
         }
+    }
+
+    private function ruleCleaning($fieldsRule, $records)
+    {
+        $tmp = [];
+        foreach ($fieldsRule as $fieldsK => $fieldsV) {
+            if (isset($records[$fieldsK])) {
+                $val = \call_user_func_array([self::$callFunc,  $fieldsV['type']], [$records[$fieldsK]]);
+            } else {
+                $val = \call_user_func_array([self::$callFunc, $fieldsV['type']], [Transformation::$defaultVal, $fieldsK]);
+            }
+            $tmp[$fieldsK] = $val;
+        }
+        return $tmp;
     }
 }

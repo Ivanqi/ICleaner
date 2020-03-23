@@ -11,7 +11,7 @@ class kafkaConsumerRepositories
     private static $kafkaConsumerAddr;
     private static $kafkaConsumerFailJob = '';
     private static $kafkaConsumerPrefix = '';
-    public static $consumerTime = 0;
+    private static $consumerTime = 0;
     private static $runProject;
     private static $tableConfig = [];
     private static $_instance;
@@ -43,6 +43,10 @@ class kafkaConsumerRepositories
         return self::$_instance;
     }
 
+    public function getConsumerTime() {
+        return  self::$consumerTime;
+    }
+
     public function kafkaConsumerConf(): \RdKafka\Conf
     {
         $conf = new \RdKafka\Conf();
@@ -51,7 +55,7 @@ class kafkaConsumerRepositories
 
         // Configure the group.id. All consumer with the same group.id will come
         // different partitions
-        $conf->set('group.id', self::$groupId . self::$runProject . '106');
+        $conf->set('group.id', self::$groupId . self::$runProject . '110');
          
         // Set where to start consuming messages when there is no initial offset in offset store or the desired offest is out of range.
         // 'smallest': start from the beginning

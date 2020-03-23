@@ -13,10 +13,15 @@ use App\ProcessRepositories\TopicsProcessRepositories;
  *
  * @since 2.0
  *
- * @Process(workerId={2, 3})
+ * @Process(workerId={2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13})
  */
 class TopicsProcess implements ProcessInterface
 {
+    private static $maxTimes;
+    public function __construct()
+    {
+        self::$maxTimes = config('kafka_config.queue_max_times');
+    }
     /**
      * @param Pool $pool
      * @param int  $workerId
@@ -26,7 +31,10 @@ class TopicsProcess implements ProcessInterface
         $topicsProcessRepositories = TopicsProcessRepositories::getInstance();
 
         while (true) {
-            $topicsProcessRepositories->topicHandler();
+            for ($i = 0; $i < self::$maxTimes; $i++) {
+                $topicsProcessRepositories->topicHandler();
+            }
+            
             Coroutine::sleep(0.1);
         }
     }

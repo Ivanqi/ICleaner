@@ -39,7 +39,11 @@ return [
                 'via' => [
                     'type' => 'INT',
                     'notes' => 'VIA'
-                ]
+                ],
+                'mtime' => [
+                    'type' => 'INT',
+                    'notes' => '时间戳'
+                ],
             ]
         ],
         't_log_barter' => [
