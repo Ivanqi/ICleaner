@@ -110,14 +110,10 @@ class kafkaConsumerRepositories
                 $topicName = $message->topic_name;
                 $recordName = substr($topicName, strlen(self::$kafkaConsumerPrefix . self::$runProject . '_') + 1);
                 
-                // 往kafka 重新写入数据
-                $payloadDataJson = serialize(gzcompress(serialize($message->payload)));
+                // 把数据写入redis队列中
+                // $payloadDataJson = serialize(gzcompress(serialize($message->payload)));
                 $jobName = sprintf(self::$kafkaTopicJob, self::$runProject, $recordName);
-                Redis::lPush($jobName, $payloadDataJson);
-
-               
-                unset($payload);
-                unset($payloadDataJson);
+                Redis::lPush($jobName, $message->payload);
             }
         } catch (\Exception $e) {
             CLog::error($e->getMessage() . '(' . $e->getLine() .')');

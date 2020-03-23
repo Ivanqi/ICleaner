@@ -115,25 +115,25 @@ class TopicsProcessRepositories
                         }
                     }
                 }
-                $payloadData = array_merge($palyloadPrev, $palyloadNext);
-                unset($palyloadNext);
-                unset($palyloadPrev);
                 unset($logDataDecrypt);
                 unset($logData);
-                
-                $kafkaData[] = $payloadData;
+                $kafkaData = array_merge($kafkaData, $palyloadPrev, $palyloadNext);
             }
-            $payloadDataEncryption = serialize(gzcompress(serialize($kafkaData)));
-            unset($kafkaData);
-            // 把数据发送到kafka
-            if (!self::$kafkaProducer->kafkaProducer($keyArr[self::TOPIC_NAME], $payloadDataEncryption)) {
-                throw new \Exception("kafka客户端连接失败！");
+            if (empty($kafkaData)) {
+                $payloadDataEncryption = serialize(gzcompress(serialize($kafkaData)));
+                unset($kafkaData);
+                // 把数据发送到kafka
+                if (!self::$kafkaProducer->kafkaProducer($keyArr[self::TOPIC_NAME], $payloadDataEncryption)) {
+                    throw new \Exception("kafka客户端连接失败！");
+                }
+                unset($payloadDataEncryption);
             }
-            unset($payloadDataEncryption);
-            foreach($failData as $failLog) {
-                Redis::lrem($keyArr[self::KAFKA_TOPIC_FAILE_JOB_KEY], $failLog);
+            if (empty($failData)) {
+                foreach($failData as $failLog) {
+                    Redis::lrem($keyArr[self::KAFKA_TOPIC_FAILE_JOB_KEY], $failLog);
+                }
+                unset($failData);
             }
-            unset($failData);
         } catch (\Exception $e) {
             CLog::error($e->getMessage() . '(' . $e->getLine() .')');
         }
