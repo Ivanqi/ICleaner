@@ -55,7 +55,7 @@ class kafkaConsumerRepositories
 
         // Configure the group.id. All consumer with the same group.id will come
         // different partitions
-        $conf->set('group.id', self::$groupId . self::$runProject . '110');
+        $conf->set('group.id', self::$groupId . self::$runProject);
          
         // Set where to start consuming messages when there is no initial offset in offset store or the desired offest is out of range.
         // 'smallest': start from the beginning
@@ -109,10 +109,9 @@ class kafkaConsumerRepositories
             if ($message->payload) {
                 $topicName = $message->topic_name;
                 $recordName = substr($topicName, strlen(self::$kafkaConsumerPrefix . self::$runProject . '_') + 1);
-                $payload = json_decode($message->payload, true);
                 
                 // 往kafka 重新写入数据
-                $payloadDataJson = serialize(gzcompress(serialize($payload)));
+                $payloadDataJson = serialize(gzcompress(serialize($message->payload)));
                 $jobName = sprintf(self::$kafkaTopicJob, self::$runProject, $recordName);
                 Redis::lPush($jobName, $payloadDataJson);
 

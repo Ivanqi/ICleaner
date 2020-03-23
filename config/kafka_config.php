@@ -14,5 +14,5 @@ return [
     'kafka_topic_fail_job' => '%s_%s_topic_fail_job',
     'kafka_test_env' => env('KAFKA_TEST_ENV', false),
     'queue_max_timeout' => 5,
-    'queue_max_times' => 20,
+    'queue_max_times' => env('QUEUE_MAX_TIMES', 22),
 ];

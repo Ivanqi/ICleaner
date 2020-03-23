@@ -66,13 +66,14 @@ class KafkaConsumerProcess implements ProcessInterface
                 switch ($message->err) {
                     case RD_KAFKA_RESP_ERR_NO_ERROR:
                         $kafkakafkaProducer->handleConsumerMessage($message);
+                        // $consumer->commit($message);
                         break;
                     case RD_KAFKA_RESP_ERR__PARTITION_EOF:
                         // CLog::error('No more message; will wait for more');
                         // $end_time = microtime(true); 
                         // $execution_time = ($end_time - $start_time); 
                         // CLog::error(" 脚本执行时间 = ".$execution_time." 秒");
-                        Coroutine::sleep(0.1);
+                        // Coroutine::sleep(0.1);
                         break;
                     case RD_KAFKA_RESP_ERR__TIMED_OUT:
                         // CLog::error('Timed out:'. $workerId);

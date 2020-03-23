@@ -2,7 +2,6 @@
 
 namespace App\Common;
 use SnowflakeIdWorker\IdWorker;
-
 class Transformation
 {
     public static $defaultVal = " ";

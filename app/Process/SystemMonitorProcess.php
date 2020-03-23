@@ -42,7 +42,7 @@ class SystemMonitorProcess implements ProcessInterface
                     \Swoole\Process::kill($prevPid , SIGUSR2);
                 }
             }
-            Coroutine::sleep(2);
+            Coroutine::sleep(1);
         }
     }
 }

@@ -7,7 +7,7 @@ return [
         ],
         'table_prefix' => 't_'
     ],
-    20 => [
+    23 => [
         'topic_list' => [
             'log_copy_kunlun',
             'log_marry_star'
