@@ -32,7 +32,7 @@ class KafkaCommand
         $this->kafkaTopicsScript = config('kafka_script_config.kafka_topics_script');
         $this->kafkaConsumerGroupScript = config('kafka_script_config.kafka_consumer_group_script');
         $this->zookeeperAddr = config('kafka_script_config.zookeeper_addr');
-        $this->kafkaAddr = config('kafka_config.kafka_addr');
+        $this->kafkaAddr = config('kafka_config.kafka_producer_addr');
     }
 
     private function checkError(string $msg)
