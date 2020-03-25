@@ -34,11 +34,22 @@ class kafkaProducerRepositories
 
     private function kafkaProducerConf(): \RdKafka\Conf
     {
+        $rdkafkaProducerConfig = config('kafka_config.rdkafka_producer_config');
         $conf = new \RdKafka\Conf();
-        $conf->set('metadata.broker.list', self::$kafkaProducerAddr);
-        $conf->set('socket.keepalive.enable', 'true');
-        $conf->set('log.connection.close', 'true');
+        foreach($rdkafkaProducerConfig as $key => $data){
+            if (isset($data['func'])) {
+                $val = call_user_func([$this, $data['func']]);
+            } else {
+                $val = $data['val'];
+            }
+            $conf->set($key, $val);
+        }
         return $conf;
+    }
+
+    public function getBrokerList()
+    {
+        return self::$kafkaProducerAddr;
     }
 
     public function kafkaProducer($recordName, string $data): bool

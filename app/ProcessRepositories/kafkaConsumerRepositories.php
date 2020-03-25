@@ -19,6 +19,7 @@ class kafkaConsumerRepositories
     private static $topicRule = '';
     private static $kafkaTestEnv = false;
     private static $kafkaTopicJob = '';
+    private static $rdkafkaConsumerConfig = [];
 
     public function __construct()
     {
@@ -33,6 +34,7 @@ class kafkaConsumerRepositories
         self::$kafkaTestEnv = config('kafka_config.kafka_test_env');
         self::$kafkaTopicJob = config('kafka_config.kafka_topic_job');
         self::$consumerTime = config('kafka_config.kafka_consumer_time');
+        self::$rdkafkaConsumerConfig = config('kafka_config.rdkafka_consumer_config');
     }
 
     public static function getInstance()
@@ -52,24 +54,24 @@ class kafkaConsumerRepositories
         $conf = new \RdKafka\Conf();
         // Set a rebalance callback to log partition assignments (optional)
         $conf->setRebalanceCb(__CLASS__ . '::setRebalanceCb');
-
-        // Configure the group.id. All consumer with the same group.id will come
-        // different partitions
-        $conf->set('group.id', self::$groupId . self::$runProject);
-         
-        // Set where to start consuming messages when there is no initial offset in offset store or the desired offest is out of range.
-        // 'smallest': start from the beginning
-        if (self::$kafkaTestEnv) {
-            $conf->set('auto.offset.reset', 'smallest');
+        foreach(self::$rdkafkaConsumerConfig as $key => $data){
+            if (isset($data['func'])) {
+                $val = call_user_func([$this, $data['func']]);
+            } else {
+                $val = $data['val'];
+            }
+            $conf->set($key, $val);
         }
-        // Initial list of Kafka brokers
-        $conf->set('metadata.broker.list', self::$kafkaConsumerAddr);
-        $conf->set('socket.keepalive.enable', 'true');
-        $conf->set('log.connection.close', 'false');
-        // $conf->set('session.timeout.ms', '400000');
-        // $conf->set('max.partition.fetch.bytes', '848576');
-
         return $conf;
+    }
+    public function getGroupId()
+    {
+        return self::$groupId . self::$runProject;
+    }
+
+    public function getBrokerList()
+    {
+        return self::$kafkaConsumerAddr;
     }
 
     public static function setErrorCb($producer, $err, $reason)
