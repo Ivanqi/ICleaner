@@ -20,8 +20,25 @@ class Transformation
     private static $dataAdapterList = [
         'val', 'extra_field'
     ];
+    private static $_instance;
+    private static $workerID;
 
-    public static function __callStatic(string $funcName, $args)
+
+
+    public static function getInstance($workerID)
+    {
+        if (!self::$_instance) {
+            self::$_instance = new self($workerID);
+        }
+        return self::$_instance;
+    }
+
+    public function __construct($workerID)
+    {
+        self::$workerID = $workerID;
+    }
+
+    public function __call(string $funcName, $args)
     {
         $funcName = strtolower($funcName);
         if (!isset(self::$allowFunList[$funcName])) {
@@ -34,14 +51,14 @@ class Transformation
             $flipExtracFields = array_flip(self::$extrac_fields);
             $extrac_fields = $args[self::$extrac_fields_check];
             if (isset($flipExtracFields[$extrac_fields])) {
-                $val = call_user_func([__CLASS__ , $extrac_fields]);
+                $val = call_user_func([$this , $extrac_fields]);
             }
         }
 
-        return call_user_func([__CLASS__ , self::$allowFunList[$funcName]], $val);
+        return call_user_func([$this , self::$allowFunList[$funcName]], $val);
     }
 
-    private static function dataAdapter(array $args): array
+    private function dataAdapter(array $args): array
     {
         if (empty($args)) {
             throw new \Exception("参数为空");
@@ -56,29 +73,29 @@ class Transformation
         return $tmp;
     }
 
-    private static function _int($val): int
+    private function _int($val): int
     {
         return (int) $val;
     }
 
-    private static function _bigint($val): int
+    private function _bigint($val): int
     {
         return (int) $val;
     }
 
-    private static function _string($val): string
+    private function _string($val): string
     {
         return (string) $val;
     }
 
-    private static function client_time(): int
+    private function client_time(): int
     {
         return time();
     }
 
-    private static function pid(): int
+    private function pid(): int
     {
-        $idWorker = IdWorker::getInstance();
+        $idWorker = IdWorker::getInstance(self::$workerID);
         $pid = $idWorker->nextId();
         return $pid;
     }

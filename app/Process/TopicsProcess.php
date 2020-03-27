@@ -28,7 +28,7 @@ class TopicsProcess implements ProcessInterface
      */
     public function run(Pool $pool, int $workerId): void
     { 
-        $topicsProcessRepositories = TopicsProcessRepositories::getInstance();
+        $topicsProcessRepositories = TopicsProcessRepositories::getInstance($workerId);
 
         while (true) {
             for ($i = 0; $i < self::$maxTimes; $i++) {

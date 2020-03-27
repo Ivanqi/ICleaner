@@ -22,17 +22,18 @@ class TopicsProcessRepositories
     const TOPIC_NAME = 'topic_name';
     private static $callFunc = '';
     private static $kafkaProducer;
+    private static $transformation;
 
 
-    public static function getInstance()
+    public static function getInstance($workerId)
     {
         if (!self::$_instance) {
-            self::$_instance = new self();
+            self::$_instance = new self($workerId);
         }
         return self::$_instance;
     }
 
-    public function __construct()
+    public function __construct($workerId)
     {
         self::$runProject = (int) config('kafka_config.run_project');
         $tableConfig = config('table_config');
@@ -47,10 +48,8 @@ class TopicsProcessRepositories
         self::$tableRuleConfig = config('table_info_' . self::$runProject . '_rule')[self::$runProject];
         self::$maxTimes = config('kafka_config.queue_max_times');
 
-        self::$callFunc = '\\App\\Common\\Transformation';
+        self::$transformation = Transformation::getInstance($workerId);
         self::$kafkaProducer = kafkaProducerRepositories::getInstance();
-
-
     }
 
     private function getRRNum()
@@ -91,7 +90,7 @@ class TopicsProcessRepositories
             $failData = [];
             for ($i = 0; $i < self::$maxTimes; $i++) {
                 $logData = Redis::BRPOPLPUSH($keyArr[self::KAFKA_TOPIC_JOB_KEY], $keyArr[self::KAFKA_TOPIC_FAILE_JOB_KEY], self::$maxTimeout);
-                if (empty($logData)) continue;
+                if (empty($logData)) { unset($logData); continue; }
                 $failData[] = $logData;
                 $logDataDecrypt = unserialize(gzuncompress(unserialize($logData)));
                 $tableName = self::$tablePrefix . $keyArr[self::TOPIC_NAME];
@@ -101,22 +100,11 @@ class TopicsProcessRepositories
                 // 规则清洗
                 $fieldsRule = self::$tableRuleConfig[$tableName]['fields'];
 
-                $palyloadPrev = [];
-                $palyloadNext = [];
-                $dataNum = count($logDataDecrypt);
-                $half = ceil($dataNum  / 2);
-                for ($i = 0; $i < $half; $i++) {
-                    $palyloadPrev[$i] = $this->ruleCleaning($fieldsRule, $logDataDecrypt[$i]);
-                    $next = $half + $i;
-                    if ($next < $dataNum) {
-                        if (isset($logDataDecrypt[$next])) {
-                            $palyloadNext[$next] = $this->ruleCleaning($fieldsRule, $logDataDecrypt[$i]);
-                        }
-                    }
-                }
-                unset($logDataDecrypt);
+                foreach ($logDataDecrypt as $records) {
+                    $kafkaData[] = $this->ruleCleaning($fieldsRule, $records);
+                } 
                 unset($logData);
-                $kafkaData = array_merge($kafkaData, $palyloadPrev, $palyloadNext);
+                unset($logDataDecrypt);
             }
             if (!empty($kafkaData)) {
                 $payloadDataEncryption = serialize(gzcompress(serialize($kafkaData)));
@@ -134,7 +122,7 @@ class TopicsProcessRepositories
                 unset($failData);
             }
         } catch (\Exception $e) {
-            CLog::error($e->getMessage() . '(' . $e->getLine() .')');
+            CLog::error($e->getMessage() . '(' . $e->getFile() . ':' . $e->getLine() .')');
         }
     }
 
@@ -143,9 +131,9 @@ class TopicsProcessRepositories
         $tmp = [];
         foreach ($fieldsRule as $fieldsK => $fieldsV) {
             if (isset($records[$fieldsK])) {
-                $val = \call_user_func_array([self::$callFunc,  $fieldsV['type']], [$records[$fieldsK]]);
+                $val = \call_user_func_array([self::$transformation,  $fieldsV['type']], [$records[$fieldsK]]);
             } else {
-                $val = \call_user_func_array([self::$callFunc, $fieldsV['type']], [Transformation::$defaultVal, $fieldsK]);
+                $val = \call_user_func_array([self::$transformation, $fieldsV['type']], [Transformation::$defaultVal, $fieldsK]);
             }
             $tmp[$fieldsK] = $val;
         }
