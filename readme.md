@@ -5,7 +5,7 @@
   - ![可拓展架构](./docs/日志服务架构图_2.png)
 
 #### 数据清洗(ICleaner)
-![服务收集](./docs/ICleaner_1.png)
+![数据清洗](./docs/ICleaner_1.png)
 
 #### 依赖环境
 - PHP 7.x
