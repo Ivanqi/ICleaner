@@ -15,6 +15,8 @@
 #### 启动方式
 - 进程池 Server
   - php bin/swoft process:start
+- Kafka 脚本操作
+  - php bin/swoft kafka
 
 #### 清洗文件配置方式
 ```
